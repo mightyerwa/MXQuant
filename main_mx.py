@@ -81,8 +81,8 @@ def main():
                         help="Where to extract calibration data from.")
 
     parser.add_argument("--s_bits", type=int, default=6, help="bits of scale")
-    parser.add_argument("--e_bits_a", type=int, default=5, help="bits of activation")
-    parser.add_argument("--e_bits_w", type=int, default=5, help="bits of weight")
+    parser.add_argument("--e_bits_a", type=int, default=6, help="bits of activation")
+    parser.add_argument("--e_bits_w", type=int, default=6, help="bits of weight")
 
     parser.add_argument("--group_size", type = int, default = None, help = "group_size for activation and weight")
 

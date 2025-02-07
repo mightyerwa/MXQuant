@@ -53,6 +53,9 @@ class UniformQuantizer(nn.Module):
             self.quant_weight = True
             self.quant_activation = False
             dim_out_feature = weight.shape[0]
+            if group_size is not None:
+                assert weight.shape[1] % group_size == 0, "in_feature of weight must be divisible by group_size"
+                dim_out_feature = (weight.shape[1] // group_size) * dim_out_feature
             self.bound_factor = nn.Parameter(torch.ones((dim_out_feature, 1)) * 4)
             self.sigmoid = nn.Sigmoid()
         else:
@@ -81,7 +84,9 @@ class UniformQuantizer(nn.Module):
     def fake_quant(self, x: torch.Tensor):
         dtype = x.dtype
         if self.group_size is not None:
-            pass
+            ori_shape = x.shape
+            assert ori_shape[-1] % self.group_size == 0, "hidden_size or in_feature of weight must be divisible by group_size"
+            x = x.view(-1, self.group_size)
 
         if self.quant_weight:
             if self.disable_zero_point:
@@ -129,6 +134,9 @@ class UniformQuantizer(nn.Module):
                 raise NotImplementedError
         else:
             raise NotImplementedError
+
+        if self.group_size is not None:
+            x_dequant = x_dequant.view(ori_shape)
 
         return x_dequant
 

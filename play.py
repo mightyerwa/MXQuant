@@ -5,42 +5,24 @@ import torch.nn as nn
 
 
 import torch
-import torch.nn as nn
 
-# 定义一个简单的模型
-class MyModel(nn.Module):
-    def __init__(self):
-        super(MyModel, self).__init__()
-        self.emb = nn.Embedding(10, 10)
-        self.linear = nn.Linear(10, 10)
+# 创建一个随机 tensor，假设它的维度是 (2048, 4096) 或 (batch_size, 128, height, width)
+x = torch.randn(2048, 4096)
 
-    def forward(self, x):
-        # 打印输入数据类型
-        print(f"Input dtype: {x.dtype}")
+# 保存原始形状
+original_shape = x.shape
 
-        # 线性层计算
-        x = self.linear(x)
+# 将 tensor 转换为 (-1, 128)，注意这里要确保转换后元素个数一致
+x_reshaped = x.view(-1, 128)
 
-        # 打印线性层输出数据类型
-        print(f"Linear output dtype: {x.dtype}")
+# 进行一系列处理，例如对 reshaped tensor 进行操作
+# 假设这里是一个简单的加法操作
+x_reshaped = x_reshaped + 1
 
-        # 添加一个激活函数（ReLU）
-        x = torch.relu(x)
+# 恢复为原来的形状
+x_restored = x_reshaped.view(original_shape)
 
-        # 打印激活函数输出数据类型
-        print(f"ReLU output dtype: {x.dtype}")
-
-        return x
-
-# 创建模型并转换为 bfloat16
-model = MyModel().to(torch.bfloat16).cuda()  # 将模型移动到 GPU 并转换为 bfloat16
-
-# 创建输入数据并转换为 float16
-x = torch.randn(1, 10).cuda().to(torch.float16)  # 输入是 float16
-
-# 使用 autocast 进行前向传播
-with torch.cuda.amp.autocast(dtype=torch.bfloat16):  # 指定 autocast 使用 bfloat16
-    output = model(x)
-
-# 打印最终输出数据类型
-print(f"Final output dtype: {output.dtype}")
+# 打印检查
+print("Original shape:", original_shape)
+print("Reshaped shape:", x_reshaped.shape)
+print("Restored shape:", x_restored.shape)
