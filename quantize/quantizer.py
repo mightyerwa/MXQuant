@@ -53,8 +53,7 @@ class UniformQuantizer(nn.Module):
             self.quant_weight = True
             self.quant_activation = False
             dim_out_feature = weight.shape[0]
-            self.upbound_factor = nn.Parameter(torch.ones((dim_out_feature, 1)) * 4)
-            self.lowbound_factor = nn.Parameter(torch.ones((dim_out_feature, 1)) * 4)
+            self.bound_factor = nn.Parameter(torch.ones((dim_out_feature, 1)) * 4)
             self.sigmoid = nn.Sigmoid()
         else:
             self.quant_weight = False
@@ -88,9 +87,9 @@ class UniformQuantizer(nn.Module):
             if self.disable_zero_point:
                 xmax = x.amax(dim=-1, keepdim=True)
                 xmin = x.amin(dim=-1, keepdim=True)
-                xmax = self.sigmoid(self.upbound_factor) * xmax
-                xmin = self.sigmoid(self.lowbound_factor) * xmin
                 abs_max = torch.max(torch.abs(xmax), torch.abs(xmin))
+                abs_max = self.sigmoid(self.bound_factor) * abs_max
+
                 self.shard_exp = get_shared_exp(abs_max, self.s_bits)
                 self.shard_exp = torch.clamp(self.shard_exp, self.smin, self.smax)
 
