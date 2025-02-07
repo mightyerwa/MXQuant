@@ -6,23 +6,18 @@ import torch.nn as nn
 
 import torch
 
-# 创建一个随机 tensor，假设它的维度是 (2048, 4096) 或 (batch_size, 128, height, width)
-x = torch.randn(2048, 4096)
+# 假设 x 是一个三维的 PyTorch tensor，并且 requires_grad=True
+x = torch.randn(3, 3, 3, requires_grad=True)  # 创建一个带有梯度追踪的张量
 
-# 保存原始形状
-original_shape = x.shape
+# x_tril = torch.tril(x) * torch.float('inf')
+# 使用 torch.zeros_like 来确保类型和 requires_grad 保持一致
+# y = torch.where(x <=0, torch.zeros_like(x), torch.log2(x))
+y = torch.where(x <=0, torch.tensor(0.0), torch.log2(x))
+# 假设你有一个损失函数，这里只是一个简单的平方和损失
+loss = y.sum()
 
-# 将 tensor 转换为 (-1, 128)，注意这里要确保转换后元素个数一致
-x_reshaped = x.view(-1, 128)
+# 反向传播计算梯度
+loss.backward()
 
-# 进行一系列处理，例如对 reshaped tensor 进行操作
-# 假设这里是一个简单的加法操作
-x_reshaped = x_reshaped + 1
-
-# 恢复为原来的形状
-x_restored = x_reshaped.view(original_shape)
-
-# 打印检查
-print("Original shape:", original_shape)
-print("Reshaped shape:", x_reshaped.shape)
-print("Restored shape:", x_restored.shape)
+# 查看梯度
+print(x.grad)

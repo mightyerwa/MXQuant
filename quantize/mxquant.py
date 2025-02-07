@@ -168,8 +168,11 @@ def mxquant(model, args, trainloader, valloader, act_scales, logger):
 
     if args.resume:
         mx_parameters = torch.load(args.resume)
+        mx_parameters_number = 42
     else:
         mx_parameters = {}
+        mx_parameters_files = [f for f in os.listdir(args.output_dir) if f.startswith('mx_parameters') and f.endswith('.pth')]
+        mx_parameters_number = len(mx_parameters_files) + 1
 
 
     # step 6: start training
@@ -326,7 +329,7 @@ def mxquant(model, args, trainloader, valloader, act_scales, logger):
             layers[block_index] = qlayer.to("cpu")
 
             mx_parameters[block_index] = mx_state_dict(qlayer)
-            torch.save(mx_parameters, os.path.join(args.output_dir, f"mx_parameters.pth"))
+            torch.save(mx_parameters, os.path.join(args.output_dir, f"mx_parameters_{mx_parameters_number}.pth"))
         else:
             register_scales_and_zeros(qlayer)
             layers[block_index] = qlayer.to("cpu")

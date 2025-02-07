@@ -122,6 +122,7 @@ class MXLlamaAttention(nn.Module):
 
         # upcast attention to fp 32
         attn_weights = nn.functional.softmax(attn_weights, dim=-1, dtype=torch.float32).to(query_states.dtype)
+
         attn_weights = self.pv_matmul.quant_x1(attn_weights)
         value_states = self.pv_matmul.quant_x2(value_states)
         attn_output = self.pv_matmul(attn_weights, value_states)
@@ -139,6 +140,7 @@ class MXLlamaAttention(nn.Module):
 
         if not output_attentions:
             attn_weights = None
+
 
         return attn_output, attn_weights, past_key_value
 
