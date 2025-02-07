@@ -178,7 +178,7 @@ def mxquant(model, args, trainloader, valloader, act_scales, logger):
         logger.info(f"=== Start quantize blocks {block_index}===")
         # step 6.1 replace torch.nn.Linear layer with MXLinear for QAT
         layer = layers[block_index].to(dev)
-        qlayer = MXLlamaDecoderLayer(config= model.config, org_layer = layer, s_bits = args.s_bits, e_bits = args.e_bits, group_size=args.group_size)
+        qlayer = MXLlamaDecoderLayer(config= model.config, org_layer = layer, s_bits = args.s_bits, e_bits_w = args.e_bits_w, e_bits_a = args.e_bits_a, group_size=args.group_size)
         qlayer = qlayer.to(dev)
 
         # obtain output of full-precision model
@@ -302,7 +302,7 @@ def mxquant(model, args, trainloader, valloader, act_scales, logger):
                 val_loss_mean = torch.stack(val_loss_list).mean()
                 norm_mean = torch.stack(norm_list).mean()
                 logger.info(
-                    f"blocks {block_index} epoch {epoch} recon_loss:{loss_mean} val_loss:{val_loss_mean} norm:{norm_mean:.8f} max memory_allocated {torch.cuda.max_memory_allocated(dev) / 1024 ** 2} time {time.time() - start_time} ")
+                    f"blocks {block_index} epoch {epoch} recon_loss:{loss_mean:.8f} val_loss:{val_loss_mean:.8f} norm:{norm_mean:.8f} max memory_allocated {torch.cuda.max_memory_allocated(dev) / 1024 ** 2:.2f} time {time.time() - start_time:.2f} ")
                 # if val_loss_mean < best_val_loss:
                 #     best_val_loss = val_loss_mean
                 # else:

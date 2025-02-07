@@ -70,7 +70,7 @@ def main():
     parser.add_argument("--eval_tasks", type=str, default="arc_easy,arc_challenge",
                         help="exampe:piqa,arc_easy,arc_challenge,hellaswag,winogrande")
     parser.add_argument("--eval_batch_size", type=int, default=16)
-    parser.add_argument("--max_memory", type=str, default="40GiB", help="The maximum memory of each GPU")
+    parser.add_argument("--max_memory", type=str, default="44GiB", help="The maximum memory of each GPU")
     parser.add_argument("--net", type=str, default=None)
 
     # quantize parameters
@@ -80,15 +80,17 @@ def main():
                         choices=["wikitext2", "ptb", "c4", "mix", "redpajama"],
                         help="Where to extract calibration data from.")
 
-    parser.add_argument("--s_bits", type=int, default=6, help="bits of weight")
-    parser.add_argument("--e_bits", type=int, default=5, help="bits of activation")
+    parser.add_argument("--s_bits", type=int, default=6, help="bits of scale")
+    parser.add_argument("--e_bits_a", type=int, default=5, help="bits of activation")
+    parser.add_argument("--e_bits_w", type=int, default=5, help="bits of weight")
+
     parser.add_argument("--group_size", type = int, default = None, help = "group_size for activation and weight")
 
-    parser.add_argument('--train_size', default=256, type=int, help='num of train data samples')
+    parser.add_argument('--train_size', default=192, type=int, help='num of train data samples')
     parser.add_argument('--val_size', default=64, type=int, help='num of val data samples')
     parser.add_argument("--training_seqlen", default=2048, type=int, help='seqlen of training data')
 
-    parser.add_argument("--epochs", default=20, type=int, help='num of epochs')
+    parser.add_argument("--epochs", default=25, type=int, help='num of epochs')
     parser.add_argument("--batch_size", default=4, type=int, help='batch size')
     parser.add_argument("--off_load_to_disk", action='store_true', help = "off load train_data to disk")
     parser.add_argument("--act-scales", type=str, default=None)
@@ -114,7 +116,7 @@ def main():
     if args.save_quant_dir:
         Path(args.save_quant_dir).mkdir(parents=True, exist_ok=True)
     output_dir = Path(args.output_dir)
-    logger = utils.create_logger(output_dir)
+    logger = utils.create_logger(output_dir, args=args)
     logger.info(args)
 
     if args.net is None:
@@ -134,7 +136,7 @@ def main():
     for param in model.parameters():
         param.requires_grad = False
 
-    if args.e_bits < 16:
+    if args.e_bits_w < 16:
         logger.info("=== start quantization ===")
         tick =time.time()
         # load calibration dataset
@@ -178,6 +180,7 @@ def main():
     evaluate(model, tokenizer, args, logger)
 
     if args.epochs > 0:
+        import pdb; pdb.set_trace()
         save_dir = os.path.join(args.save_quant_dir, f'{args.model_family}_sbits{args.s_bits}_ebits{args.e_bits}_epochs{args.epochs}_letlr{args.let_lr}_lwclr{args.lwc_lr}.pt')
         torch.save(model.state_dict(), save_dir)
 

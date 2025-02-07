@@ -73,7 +73,7 @@ def create_logger(output_dir, args, dist_rank=0, name=''):
     # create file handlers
     log_files = [f for f in os.listdir() if f.startswith('log_') and f.endswith('.txt')]
     log_number = len(log_files) + 1
-    file_handler = logging.FileHandler(os.path.join(output_dir, f'log_sbits_{args.s_bits}_ebits_{args.e_bits}_trainsize_{args.train_size}_ver{log_number}.txt'), mode='a')
+    file_handler = logging.FileHandler(os.path.join(output_dir, f'log_sbits_{args.s_bits}_ebitsa_{args.e_bits_a}_ebitsw_{args.e_bits_w}_trainsize_{args.train_size}_ver{log_number}.txt'), mode='a')
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(logging.Formatter(fmt=fmt, datefmt='%Y-%m-%d %H:%M:%S'))
     logger.addHandler(file_handler)

@@ -11,7 +11,8 @@ class MXLinear(nn.Module):
     def __init__(self,
                  org_module: nn.Linear,
                  s_bits: int = 8,
-                 e_bits: int = 8,
+                 e_bits_w: int = 6,
+                 e_bits_a: int = 6,
                  group_size: int = None):
         super(MXLinear, self).__init__()
         self.fwd_kwargs = dict()
@@ -28,8 +29,8 @@ class MXLinear(nn.Module):
         self.use_act_quant = False
         self.use_temporary_parameter = False
 
-        self.weight_quantizer = UniformQuantizer(s_bits = s_bits, e_bits = e_bits, group_size = group_size, weight = self.weight)
-        self.act_quantizer = UniformQuantizer(s_bits = s_bits, e_bits = e_bits, group_size = group_size)
+        self.weight_quantizer = UniformQuantizer(s_bits = s_bits, e_bits = e_bits_w, group_size = group_size, weight = self.weight)
+        self.act_quantizer = UniformQuantizer(s_bits = s_bits, e_bits = e_bits_a, group_size = group_size)
 
     def forward(self, input):
 

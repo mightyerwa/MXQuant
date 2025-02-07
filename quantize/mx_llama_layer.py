@@ -23,12 +23,13 @@ class MXLlamaMLP(nn.Module):
                  org_module: nn.Module,
                  hidden_act: str,
                  s_bits: int,
-                 e_bits: int,
+                 e_bits_w: int,
+                 e_bits_a: int,
                  group_size: int,):
         super(MXLlamaMLP, self).__init__()
-        self.gate_proj = MXLinear(org_module=org_module.gate_proj, s_bits = s_bits, e_bits = e_bits, group_size = group_size)
-        self.down_proj = MXLinear(org_module = org_module.down_proj, s_bits = s_bits, e_bits = e_bits, group_size = group_size)
-        self.up_proj = MXLinear(org_module=org_module.up_proj, s_bits = s_bits, e_bits = e_bits, group_size = group_size)
+        self.gate_proj = MXLinear(org_module=org_module.gate_proj, s_bits = s_bits, e_bits_w = e_bits_w, e_bits_a = e_bits_a, group_size = group_size)
+        self.down_proj = MXLinear(org_module = org_module.down_proj, s_bits = s_bits, e_bits_w = e_bits_w, e_bits_a = e_bits_a, group_size = group_size)
+        self.up_proj = MXLinear(org_module=org_module.up_proj, s_bits = s_bits, e_bits_w = e_bits_w, e_bits_a = e_bits_a, group_size = group_size)
         self.act_fn = ACT2FN[hidden_act]
 
     def forward(self, x):
@@ -39,7 +40,8 @@ class MXLlamaAttention(nn.Module):
                  org_module: nn.Module,
                  config: LlamaConfig,
                  s_bits: int,
-                 e_bits: int,
+                 e_bits_w: int,
+                 e_bits_a: int,
                  group_size: int,):
         super(MXLlamaAttention, self).__init__()
         self.config = config
@@ -52,13 +54,13 @@ class MXLlamaAttention(nn.Module):
         assert self.num_key_value_heads * self.num_key_value_groups == self.num_heads, "Number of attention heads must divide num_key_value_heads"
         self.max_position_embeddings = config.max_position_embeddings  # 4096 default
 
-        self.q_proj = MXLinear(org_module=org_module.q_proj, s_bits = s_bits, e_bits = e_bits, group_size = group_size)
-        self.k_proj = MXLinear(org_module=org_module.k_proj, s_bits = s_bits, e_bits = e_bits, group_size = group_size)
-        self.v_proj = MXLinear(org_module= org_module.v_proj, s_bits = s_bits, e_bits = e_bits, group_size = group_size)
-        self.o_proj = MXLinear(org_module = org_module.o_proj,s_bits = s_bits, e_bits = e_bits, group_size = group_size)
+        self.q_proj = MXLinear(org_module=org_module.q_proj, s_bits = s_bits, e_bits_w = e_bits_w, e_bits_a = e_bits_a, group_size = group_size)
+        self.k_proj = MXLinear(org_module=org_module.k_proj, s_bits = s_bits, e_bits_w = e_bits_w, e_bits_a = e_bits_a, group_size = group_size)
+        self.v_proj = MXLinear(org_module= org_module.v_proj, s_bits = s_bits, e_bits_w = e_bits_w, e_bits_a = e_bits_a, group_size = group_size)
+        self.o_proj = MXLinear(org_module = org_module.o_proj,s_bits = s_bits, e_bits_w = e_bits_w, e_bits_a = e_bits_a, group_size = group_size)
 
-        self.qkt_matmul = MXMatMul(s_bits = s_bits, e_bits = e_bits, group_size = group_size)
-        self.pv_matmul = MXMatMul(s_bits = s_bits, e_bits = e_bits, group_size = group_size)
+        self.qkt_matmul = MXMatMul(s_bits = s_bits, e_bits = e_bits_a, group_size = group_size)
+        self.pv_matmul = MXMatMul(s_bits = s_bits, e_bits = e_bits_a, group_size = group_size)
 
         self.use_weight_quant = False
         self.use_act_quant = False
@@ -152,12 +154,13 @@ class MXLlamaDecoderLayer(nn.Module):
                  config: LlamaConfig,
                  org_layer,
                  s_bits:int,
-                 e_bits:int,
+                 e_bits_w:int,
+                 e_bits_a:int,
                  group_size: int = None):
         super().__init__()
         self.hidden_size = config.hidden_size  # 4096 128*32
-        self.self_attn = MXLlamaAttention(org_module = org_layer.self_attn, config = config, s_bits = s_bits, e_bits = e_bits, group_size = group_size)
-        self.mlp = MXLlamaMLP(org_module = org_layer.mlp, hidden_act=config.hidden_act, s_bits = s_bits, e_bits = e_bits, group_size = group_size)
+        self.self_attn = MXLlamaAttention(org_module = org_layer.self_attn, config = config, s_bits = s_bits, e_bits_w = e_bits_w, e_bits_a = e_bits_a, group_size = group_size)
+        self.mlp = MXLlamaMLP(org_module = org_layer.mlp, hidden_act=config.hidden_act, s_bits = s_bits, e_bits_w = e_bits_w, e_bits_a = e_bits_a, group_size = group_size)
 
         self.input_layernorm = MXRMSNorm(org_layer.input_layernorm, eps = org_layer.input_layernorm.variance_epsilon)
         self.post_attention_layernorm = MXRMSNorm(org_layer.post_attention_layernorm,eps=org_layer.post_attention_layernorm.variance_epsilon)
