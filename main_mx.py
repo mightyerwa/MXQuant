@@ -82,7 +82,7 @@ def main():
 
     parser.add_argument("--s_bits", type=int, default=6, help="bits of scale")
     parser.add_argument("--e_bits_a", type=int, default=6, help="bits of activation")
-    parser.add_argument("--e_bits_w", type=int, default=6, help="bits of weight")
+    parser.add_argument("--e_bits_w", type=int, default=4, help="bits of weight")
 
     parser.add_argument("--group_size", type = int, default = None, help = "group_size for activation and weight")
 
@@ -90,15 +90,15 @@ def main():
     parser.add_argument('--val_size', default=64, type=int, help='num of val data samples')
     parser.add_argument("--training_seqlen", default=2048, type=int, help='seqlen of training data')
 
-    parser.add_argument("--epochs", default=25, type=int, help='num of epochs')
+    parser.add_argument("--epochs", default=30, type=int, help='num of epochs')
     parser.add_argument("--batch_size", default=4, type=int, help='batch size')
     parser.add_argument("--off_load_to_disk", action='store_true', help = "off load train_data to disk")
     parser.add_argument("--act-scales", type=str, default=None)
     parser.add_argument("--act-shifts", type=str, default=None)
     parser.add_argument("--resume", default = None, type = str, help = "resume path")
     parser.add_argument("--alpha", default=0.7, type = float, help = "smoothquant alpha")
-    parser.add_argument("--let_lr", type=float, default=3e-4)
-    parser.add_argument("--lwc_lr", type=float, default=3e-4)
+    parser.add_argument("--let_lr", type=float, default=1e-4)
+    parser.add_argument("--lwc_lr", type=float, default=1e-3)
     parser.add_argument("--wd", type=float, default=0)
 
     os.environ['TOKENIZERS_PARALLELISM'] = 'false'

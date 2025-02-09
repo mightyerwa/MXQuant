@@ -16,36 +16,52 @@ def set_quant_state(self, weight_quant: bool = False, act_quant: bool = False):
         if isinstance(m, (MXLinear, MXMatMul)):
             m.set_quant_state(weight_quant, act_quant)
 
-def get_mx_parameters(model, use_shift = True):
+def get_mx_parameters(models, use_shift = True):
     params = []
     template = "smooth_scale"
-    for n, p in model.named_parameters():
-        if n.find(template) != -1 or n.find("bound_factor") != -1:
-            params.append(p)
+    if not isinstance(models, list):
+        models = [models]
+    for model in models:
+        if model is not None:
+            for n, p in model.named_parameters():
+                if n.find(template) != -1 or n.find("bound_factor") != -1:
+                    params.append(p)
     return iter(params)
 
-def let_parameters(model):
+def let_parameters(models):
 
     params = []
     template = "smooth_scale"
-    for n, m in model.named_parameters():
-        if n.find(template) != -1:
-            params.append(m)
+    if not isinstance(models, list):
+        models = [models]
+    for model in models:
+        if model is not None:
+            for n, m in model.named_parameters():
+                if n.find(template) != -1:
+                    params.append(m)
     return iter(params)
 
-def lwc_parameters(model):
+def lwc_parameters(models):
     params = []
-    for n, m in model.named_parameters():
-        if n.find("bound_factor") != -1:
-            params.append(m)
+    if not isinstance(models, list):
+        models = [models]
+    for model in models:
+        if model is not None:
+            for n, m in model.named_parameters():
+                if n.find("bound_factor") != -1:
+                    params.append(m)
     return iter(params)
 
-def trainable_parameters_num(model):
+def trainable_parameters_num(models):
     params = []
     total = 0
-    for n, m in model.named_parameters():
-        if m.requires_grad:
-            total += m.numel()
+    if not isinstance(models, list):
+        models = [models]
+    for model in models:
+        if model is not None:
+            for n, m in model.named_parameters():
+                if m.requires_grad:
+                    total += m.numel()
     return total
 
 

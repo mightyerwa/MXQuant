@@ -58,6 +58,8 @@ class MXLlamaAttention(nn.Module):
         self.k_proj = MXLinear(org_module=org_module.k_proj, s_bits = s_bits, e_bits_w = e_bits_w, e_bits_a = e_bits_a, group_size = group_size)
         self.v_proj = MXLinear(org_module= org_module.v_proj, s_bits = s_bits, e_bits_w = e_bits_w, e_bits_a = e_bits_a, group_size = group_size)
         self.o_proj = MXLinear(org_module = org_module.o_proj,s_bits = s_bits, e_bits_w = e_bits_w, e_bits_a = e_bits_a, group_size = group_size)
+        # value states always gona to nan
+        # FIXME fix v_proj to add some limit
 
         self.qkt_matmul = MXMatMul(s_bits = s_bits, e_bits = e_bits_a, group_size = group_size)
         self.pv_matmul = MXMatMul(s_bits = s_bits, e_bits = e_bits_a, group_size = group_size)

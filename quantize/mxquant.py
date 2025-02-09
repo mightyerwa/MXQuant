@@ -27,7 +27,7 @@ def update_dataset(layer, dataset, dev, attention_mask, position_ids, position_e
         with torch.cuda.amp.autocast():
             for index, inps in enumerate(dataset):
                 inps = inps.to(dev) # (batch_size, seqlen, hidden_dim) (2, 2048, 4096)
-                # import pdb; pdb.set_trace()
+
                 if len(inps.shape) == 2:
                     inps = inps.unsqueeze(0)
                 new_data = layer(inps, attention_mask=attention_mask,position_ids=position_ids, position_embeddings = position_embeddings)[0].to('cpu')
@@ -177,24 +177,25 @@ def mxquant(model, args, trainloader, valloader, act_scales, logger):
 
     # step 6: start training
     loss_func = nn.MSELoss()
+    qlayer = [None, None]
     for block_index in range(len(layers)):
         logger.info(f"=== Start quantize blocks {block_index}===")
         # step 6.1 replace torch.nn.Linear layer with MXLinear for QAT
         layer = layers[block_index].to(dev)
-        qlayer = MXLlamaDecoderLayer(config= model.config, org_layer = layer, s_bits = args.s_bits, e_bits_w = args.e_bits_w, e_bits_a = args.e_bits_a, group_size=args.group_size)
-        qlayer = qlayer.to(dev)
+        qlayer[block_index % 2] = MXLlamaDecoderLayer(config= model.config, org_layer = layer, s_bits = args.s_bits, e_bits_w = args.e_bits_w, e_bits_a = args.e_bits_a, group_size=args.group_size)
+        qlayer[block_index % 2] = qlayer[block_index % 2].to(dev)
 
         # obtain output of full-precision model
-        set_quant_state(qlayer, weight_quant=False, act_quant=False)  # deactivate quantization for obtaining ground truth
+        set_quant_state(qlayer[block_index % 2], weight_quant=False, act_quant=False)  # deactivate quantization for obtaining ground truth
         if args.epochs > 0:
-            update_dataset(qlayer, fp_train_inps, dev, attention_mask, position_ids, position_embeddings)
-            update_dataset(qlayer, fp_val_inps, dev, attention_mask, position_ids, position_embeddings)
-        set_quant_state(qlayer, weight_quant=False, act_quant=True)  # activate quantization
+            update_dataset(qlayer[block_index % 2], fp_train_inps, dev, attention_mask, position_ids, position_embeddings)
+            update_dataset(qlayer[block_index % 2], fp_val_inps, dev, attention_mask, position_ids, position_embeddings)
+        set_quant_state(qlayer[block_index % 2], weight_quant=False, act_quant=True)  # activate quantization
 
         is_llama = True
         if is_llama:
             use_shift = False
-        qlayer.register_parameter("qkt_smooth_scale", nn.Parameter(torch.ones(layer.self_attn.q_proj.out_features, device=dev, dtype=dtype)))
+        qlayer[block_index % 2].register_parameter("qkt_smooth_scale", nn.Parameter(torch.ones(layer.self_attn.q_proj.out_features, device=dev, dtype=dtype)))
 
         pairs = {
             "qkv": ["q_proj", "k_proj", "v_proj"],
@@ -204,7 +205,7 @@ def mxquant(model, args, trainloader, valloader, act_scales, logger):
         for key, values in pairs.items():
             weight_list = []
             act = None
-            for name, module in qlayer.named_modules():
+            for name, module in qlayer[block_index % 2].named_modules():
                 if isinstance(module, MXLinear):
                     if any(value in name for value in values):
                         if args.model_family == "llama":
@@ -221,8 +222,8 @@ def mxquant(model, args, trainloader, valloader, act_scales, logger):
                 raise NotImplementedError
             scale = (act.pow(args.alpha) / weight.pow(1 - args.alpha)).clamp(min=1e-5)
             shift = torch.zeros_like(scale) # don't use shift at first
-            qlayer.register_parameter(f"{key}_smooth_scale", torch.nn.Parameter(scale))
-            qlayer.register_parameter(f"{key}_smooth_shift", torch.nn.Parameter(shift))
+            qlayer[block_index % 2].register_parameter(f"{key}_smooth_scale", torch.nn.Parameter(scale))
+            qlayer[block_index % 2].register_parameter(f"{key}_smooth_shift", torch.nn.Parameter(shift))
 
         # import pdb; pdb.set_trace()
 
@@ -231,9 +232,14 @@ def mxquant(model, args, trainloader, valloader, act_scales, logger):
             # qlayer.load_state_dict(mx_parameters[i], strict = False)
 
         if args.epochs > 0:
+            if qlayer[(block_index + 1) % 2] is not None:
+                qlayer[(block_index + 1) % 2].zero_grad()
+                for param in get_mx_parameters(qlayer[(block_index + 1) % 2], use_shift=False):
+                    param.detach_()
             with torch.no_grad():
-                qlayer.float()  # required for AMP training
-                # import pdb; pdb.set_trace() # TODO test qlayer weight and scale dtype
+                qlayer[block_index % 2].float()  # required for AMP training
+                if qlayer[(block_index + 1) % 2] is not None:
+                    qlayer[(block_index + 1) % 2].float()
                 # create optimizer
                 optimizer = torch.optim.AdamW([{"params": let_parameters(qlayer), "lr": args.let_lr},
                                                {"params": lwc_parameters(qlayer), "lr": args.lwc_lr}], weight_decay=args.wd)
@@ -248,6 +254,8 @@ def mxquant(model, args, trainloader, valloader, act_scales, logger):
                 loss_scaler = utils.NativeScalerWithGradNormCount() #TODO
 
             trainable_number = trainable_parameters_num(qlayer)
+            for param in get_mx_parameters(qlayer, use_shift):
+                param.requires_grad = True
             print(f"trainable parameter number: {trainable_number / 1e6}M")
 
             best_val_loss = 1e6
@@ -259,12 +267,19 @@ def mxquant(model, args, trainloader, valloader, act_scales, logger):
                 start_time = time.time()
                 for index, (quant_inps, fp_inps) in enumerate(zip(quant_train_inps, fp_train_inps)):
                     with torch.cuda.amp.autocast():
-                        smooth_and_quant_temporary(qlayer, args, is_llama)
+                        smooth_and_quant_temporary(qlayer[block_index % 2], args, is_llama)
                         input = quant_inps.to(dev)
                         label = fp_inps.to(dev)
-                        quant_out = qlayer(input, attention_mask=attention_mask,
-                               position_ids=position_ids, position_embeddings=position_embeddings)[0]
-
+                        if block_index != 0:
+                            # torch.autograd.set_detect_anomaly(True)
+                            # input = input.detach()
+                            intermediate_out = qlayer[(block_index + 1) % 2](input, attention_mask=attention_mask, position_ids=position_ids, position_embeddings=position_embeddings)[0]
+                            intermediate_out_detach = intermediate_out.detach()
+                            quant_out = qlayer[block_index % 2](intermediate_out_detach, attention_mask=attention_mask, position_ids=position_ids, position_embeddings=position_embeddings)[0]
+                            # import pdb
+                            # pdb.set_trace()
+                        else:
+                            quant_out = qlayer[block_index % 2](input, attention_mask=attention_mask, position_ids=position_ids, position_embeddings=position_embeddings)[0]
                         reconstruction_loss = loss_func(label, quant_out)
                         loss = reconstruction_loss
 
@@ -277,7 +292,6 @@ def mxquant(model, args, trainloader, valloader, act_scales, logger):
                     scheduler_lwc.step()
                     optimizer.param_groups[0]['lr'] = scheduler_let.get_lr()[0]
                     optimizer.param_groups[1]['lr'] = scheduler_lwc.get_lr()[0]
-
                     loss_list.append(loss.detach().cpu())
                     optimizer.zero_grad()
                     norm = loss_scaler(loss, optimizer, parameters=get_mx_parameters(qlayer, use_shift)).cpu()
@@ -295,7 +309,16 @@ def mxquant(model, args, trainloader, valloader, act_scales, logger):
                         with torch.cuda.amp.autocast():
                             input = quant_inps.to(dev)
                             label = fp_inps.to(dev)
-                            quant_out = qlayer(input, attention_mask=attention_mask, position_ids=position_ids, position_embeddings=position_embeddings)[0]
+                            if block_index != 0:
+                                intermediate_out = qlayer[(block_index + 1) % 2](input, attention_mask=attention_mask,
+                                                                                 position_ids=position_ids,
+                                                                                 position_embeddings=position_embeddings)[0]
+                                quant_out = qlayer[block_index % 2](intermediate_out, attention_mask=attention_mask,
+                                                                    position_ids=position_ids,
+                                                                    position_embeddings=position_embeddings)[0]
+
+                            else:
+                                quant_out = qlayer[block_index % 2](input, attention_mask=attention_mask, position_ids=position_ids, position_embeddings=position_embeddings)[0]
                             reconstruction_loss = loss_func(label, quant_out)
                     val_loss_list.append(reconstruction_loss.cpu())
 
@@ -313,26 +336,28 @@ def mxquant(model, args, trainloader, valloader, act_scales, logger):
                 #     if args.early_stop > 0 and early_stop_flag >= args.early_stop:
                 #         break
             optimizer.zero_grad()
-            clear_temp_variable(qlayer)
+            if block_index != 0:
+                clear_temp_variable(qlayer[(block_index + 1) % 2])
             del optimizer
         # FIXME
 
         # real smooth and quantization
-        smooth_and_quant_inplace(qlayer, args, is_llama)
+        if block_index != 0:
+            smooth_and_quant_inplace(qlayer[(block_index + 1) % 2], args, is_llama)
 
-        qlayer.bfloat16()
+            qlayer[(block_index + 1) % 2].bfloat16()
 
-        if args.epochs > 0:
-            update_dataset(qlayer, quant_train_inps, dev, attention_mask, position_ids, position_embeddings)
-            update_dataset(qlayer, quant_val_inps, dev, attention_mask, position_ids, position_embeddings)
-            register_scales_and_zeros(qlayer)
-            layers[block_index] = qlayer.to("cpu")
+            if args.epochs > 0:
+                update_dataset(qlayer[(block_index + 1) % 2], quant_train_inps, dev, attention_mask, position_ids, position_embeddings)
+                update_dataset(qlayer[(block_index + 1) % 2], quant_val_inps, dev, attention_mask, position_ids, position_embeddings)
+                register_scales_and_zeros(qlayer[(block_index + 1) % 2])
+                layers[block_index - 1] = qlayer[(block_index + 1) % 2].to("cpu")
 
-            mx_parameters[block_index] = mx_state_dict(qlayer)
-            torch.save(mx_parameters, os.path.join(args.output_dir, f"mx_parameters_{mx_parameters_number}.pth"))
-        else:
-            register_scales_and_zeros(qlayer)
-            layers[block_index] = qlayer.to("cpu")
+                mx_parameters[block_index - 1] = mx_state_dict(qlayer[(block_index + 1) % 2])
+                torch.save(mx_parameters, os.path.join(args.output_dir, f"mx_parameters_{mx_parameters_number}.pth"))
+            else:
+                register_scales_and_zeros(qlayer[(block_index + 1) % 2])
+                layers[block_index - 1] = qlayer[(block_index + 1) % 2].to("cpu")
 
         del layer
         torch.cuda.empty_cache()
