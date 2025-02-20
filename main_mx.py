@@ -58,13 +58,14 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', default='../weight/Llama-2-7b-hf', type=str)
+    parser.add_argument('--log_prefix', default='0219', type=str, help='prefix of log files, to figure the data')
 
     parser.add_argument('--cache_dir', default='./cache', type=str)
     parser.add_argument('--output_dir', default = './log/', type=str, help='output log dir')
 
 
     # evaluate parameters
-    parser.add_argument('--seed', default=2, type=int)
+    parser.add_argument('--seed', default=42, type=int)
     parser.add_argument('--ppl_seqlen', default = 2048, type=int, help = 'num of ppl test data samples')
     parser.add_argument('--eval_ppl', default = True, type = bool, help='evaluate ppl')
     parser.add_argument("--eval_tasks", type=str, default="arc_easy,arc_challenge",
@@ -86,11 +87,11 @@ def main():
 
     parser.add_argument("--group_size", type = int, default = None, help = "group_size for activation and weight")
 
-    parser.add_argument('--train_size', default=192, type=int, help='num of train data samples')
+    parser.add_argument('--train_size', default=256, type=int, help='num of train data samples')
     parser.add_argument('--val_size', default=64, type=int, help='num of val data samples')
     parser.add_argument("--training_seqlen", default=2048, type=int, help='seqlen of training data')
 
-    parser.add_argument("--epochs", default=25, type=int, help='num of epochs')
+    parser.add_argument("--epochs", default=30, type=int, help='num of epochs')
     parser.add_argument("--batch_size", default=4, type=int, help='batch size')
     parser.add_argument("--off_load_to_disk", action='store_true', help = "off load train_data to disk")
     parser.add_argument("--act-scales", type=str, default=None)
