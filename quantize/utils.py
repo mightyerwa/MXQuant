@@ -20,7 +20,7 @@ def get_mx_parameters(model, use_shift = True):
     params = []
     template = "smooth_scale"
     for n, p in model.named_parameters():
-        if n.find(template) != -1 or n.find("bound_factor") != -1:
+        if n.find(template) != -1 or n.find("bound_factor") != -1 or n.find("lora") != -1:
             params.append(p)
     return iter(params)
 
@@ -37,6 +37,20 @@ def lwc_parameters(model):
     params = []
     for n, m in model.named_parameters():
         if n.find("bound_factor") != -1:
+            params.append(m)
+    return iter(params)
+
+def loraa_parameters(model):
+    params = []
+    for n, m in model.named_parameters():
+        if n.find("lora_A") != -1:
+            params.append(m)
+    return iter(params)
+
+def lorab_parameters(model):
+    params = []
+    for n, m in model.named_parameters():
+        if n.find("lora_B") != -1:
             params.append(m)
     return iter(params)
 
@@ -59,7 +73,7 @@ def mx_state_dict(model, destination = None, prefix: str = '', keep_vars = False
     if destination is None:
         destination = OrderedDict()
     for name, param in model.named_parameters():
-        if name.find('smooth') != -1 or name.find('bound_factor') != -1:
+        if name.find('smooth') != -1 or name.find('bound_factor') != -1 or name.find('lora') != -1:
             destination[prefix + name] = param if keep_vars else param.detach()
     return destination
 
@@ -84,8 +98,7 @@ def smooth_and_quant_temporary(model, args, isllama):
         smooth_fc_fc_temporary(model.self_attn.v_proj, model.self_attn.o_proj,
                                model.out_smooth_scale, model.out_smooth_shift)
 
-        smooth_q_k_temporary(model.self_attn.q_proj, model.self_attn.k_proj,
-                             model.qkt_smooth_scale)
+        # smooth_q_k_temporary(model.self_attn.q_proj, model.self_attn.k_proj, model.qkt_smooth_scale)
         # last layer of mlp? don't use quantization (detail on paper)
         model.mlp.down_proj.temp_weight = model.mlp.down_proj.weight
 
@@ -96,15 +109,18 @@ def smooth_and_quant_temporary(model, args, isllama):
                                 model.fc1_smooth_scale, model.fc1_smooth_shift)
         smooth_ln_fcs_temporary(model.self_attn.v_proj, model.self_attn.out_proj,
                                 model.out_smooth_scale, model.out_smooth_shift)
-        smooth_q_k_temporary(model.self_attn.q_proj, model.self_attn.k_proj,
-                             model.qkt_smooth_scale)
+        # smooth_q_k_temporary(model.self_attn.q_proj, model.self_attn.k_proj, model.qkt_smooth_scale)
         model.fc2.temp_weight = model.fc2.weight
     # quant
     for name, module in model.named_modules():
         if isinstance(module, MXLinear):
             if hasattr(module, "temp_weight"):
+                module.temp_weight = module.temp_weight + module.lora_B.t() @ module.lora_A.t()
                 module.temp_weight = module.weight_quantizer(module.temp_weight)
             else:
+                import pdb
+                pdb.set_trace()
+                print(module)
                 module.temp_weight = module.weight_quantizer(module.weight)
             if not hasattr(module, "temp_bias"):
                 module.temp_bias = module.bias
@@ -132,9 +148,9 @@ def smooth_and_quant_inplace(model, args, isllama):
                             model.out_smooth_scale, model.out_smooth_shift)
     else: # opt
         raise NotImplementedError
-    smooth_q_k_inplace(model.self_attn.q_proj, model.self_attn.k_proj,
-                        model.qkt_smooth_scale)
+    # smooth_q_k_inplace(model.self_attn.q_proj, model.self_attn.k_proj, model.qkt_smooth_scale)
     for name, module in model.named_modules():
         if isinstance(module, MXLinear):
+            module.weight = module.weight + module.lora_B.t() @ module.lora_A.t()
             module.weight = module.weight_quantizer(module.weight)
             module.use_temporary_parameter=False

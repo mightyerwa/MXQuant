@@ -13,7 +13,7 @@ import utils
 
 from quantize.utils import set_quant_state, let_parameters, lwc_parameters, get_mx_parameters, \
     smooth_and_quant_temporary,clear_temp_variable, smooth_and_quant_inplace, trainable_parameters_num, \
-    register_scales_and_zeros, mx_state_dict
+    register_scales_and_zeros, mx_state_dict, loraa_parameters, lorab_parameters
 
 
 
@@ -173,6 +173,7 @@ def mxquant(model, args, trainloader, valloader, act_scales, logger):
         mx_parameters = {}
         mx_parameters_files = [f for f in os.listdir(args.output_dir) if f.startswith('mx_parameters') and f.endswith('.pth')]
         mx_parameters_number = len(mx_parameters_files) + 1
+        logger.info(f"mx_parameters is stored in mx_parameters_{mx_parameters_number}.pth")
 
 
     # step 6: start training
@@ -181,7 +182,7 @@ def mxquant(model, args, trainloader, valloader, act_scales, logger):
         logger.info(f"=== Start quantize blocks {block_index}===")
         # step 6.1 replace torch.nn.Linear layer with MXLinear for QAT
         layer = layers[block_index].to(dev)
-        qlayer = MXLlamaDecoderLayer(config= model.config, org_layer = layer, s_bits = args.s_bits, e_bits_w = args.e_bits_w, e_bits_a = args.e_bits_a, group_size=args.group_size)
+        qlayer = MXLlamaDecoderLayer(config= model.config, org_layer = layer, s_bits = args.s_bits, e_bits_w = args.e_bits_w, e_bits_a = args.e_bits_a, group_size=args.group_size, l_rank = args.l_rank, l_alpha = args.l_alpha)
         qlayer = qlayer.to(dev)
 
         # obtain output of full-precision model
@@ -194,7 +195,7 @@ def mxquant(model, args, trainloader, valloader, act_scales, logger):
         is_llama = True
         if is_llama:
             use_shift = False
-        qlayer.register_parameter("qkt_smooth_scale", nn.Parameter(torch.ones(layer.self_attn.q_proj.out_features, device=dev, dtype=dtype)))
+        # qlayer.register_parameter("qkt_smooth_scale", nn.Parameter(torch.ones(layer.self_attn.q_proj.out_features, device=dev, dtype=dtype)))
 
         pairs = {
             "qkv": ["q_proj", "k_proj", "v_proj"],
@@ -235,15 +236,21 @@ def mxquant(model, args, trainloader, valloader, act_scales, logger):
                 qlayer.float()  # required for AMP training
                 # import pdb; pdb.set_trace() # TODO test qlayer weight and scale dtype
                 # create optimizer
-                optimizer = torch.optim.AdamW([{"params": let_parameters(qlayer), "lr": args.let_lr},
-                                               {"params": lwc_parameters(qlayer), "lr": args.lwc_lr}], weight_decay=args.wd)
+                optimizer = torch.optim.AdamW([{"params": let_parameters(qlayer), "lr": args.let_lr, "weight_decay": args.wd},
+                                               {"params": lwc_parameters(qlayer), "lr": args.lwc_lr, "weight_decay": args.wd},
+                                               {"params": loraa_parameters(qlayer), "lr": args.lora_lr / 10, "weight_decay": args.wd},
+                                               {"params": lorab_parameters(qlayer), "lr": args.lora_lr, "weight_decay": args.wd}])
 
                 # TODO
                 total_training_iteration = args.epochs * args.train_size / args.batch_size
                 empty_optimizer_1 = torch.optim.AdamW([torch.tensor(0)], lr=args.let_lr)
-                scheduler_let = CosineAnnealingLR(empty_optimizer_1, T_max=total_training_iteration, eta_min=args.let_lr / 20)
+                scheduler_let = CosineAnnealingLR(empty_optimizer_1, T_max=total_training_iteration, eta_min=args.let_lr / 30)
                 empty_optimizer_2 = torch.optim.AdamW([torch.tensor(0)], lr=args.lwc_lr)
-                scheduler_lwc = CosineAnnealingLR(empty_optimizer_2, T_max=total_training_iteration, eta_min=args.lwc_lr / 20)
+                scheduler_lwc = CosineAnnealingLR(empty_optimizer_2, T_max=total_training_iteration, eta_min=args.lwc_lr / 30)
+                empty_optimizer_3 = torch.optim.AdamW([torch.tensor(0)], lr=args.lora_lr / 10)
+                scheduler_lora_a = CosineAnnealingLR(empty_optimizer_3, T_max=total_training_iteration, eta_min=args.lora_lr / 300)
+                empty_optimizer_4 = torch.optim.AdamW([torch.tensor(0)], lr=args.lora_lr)
+                scheduler_lora_b = CosineAnnealingLR(empty_optimizer_4, T_max=total_training_iteration, eta_min=args.lora_lr / 30)
 
                 loss_scaler = utils.NativeScalerWithGradNormCount() #TODO
 
@@ -275,8 +282,12 @@ def mxquant(model, args, trainloader, valloader, act_scales, logger):
                     # print(optimizer)
                     scheduler_let.step()
                     scheduler_lwc.step()
+                    scheduler_lora_a.step()
+                    scheduler_lora_b.step()
                     optimizer.param_groups[0]['lr'] = scheduler_let.get_lr()[0]
                     optimizer.param_groups[1]['lr'] = scheduler_lwc.get_lr()[0]
+                    optimizer.param_groups[2]['lr'] = scheduler_lora_a.get_lr()[0]
+                    optimizer.param_groups[3]['lr'] = scheduler_lora_b.get_lr()[0]
 
                     loss_list.append(loss.detach().cpu())
                     optimizer.zero_grad()

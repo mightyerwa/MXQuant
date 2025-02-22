@@ -71,7 +71,7 @@ def create_logger(output_dir, args, dist_rank=0, name=''):
         logger.addHandler(console_handler)
 
     # create file handlers
-    log_files = [f for f in os.listdir(output_dir) if f.startswith('log_') and f.endswith('.txt')]
+    log_files = [f for f in os.listdir(output_dir) if f.startswith(f'log_{args.log_prefix}') and f.endswith('.txt')]
     log_number = len(log_files) + 1
     if args.group_size is None:
         file_handler = logging.FileHandler(os.path.join(output_dir, f'log_{args.log_prefix}_sbits_{args.s_bits}_ebitsa_{args.e_bits_a}_ebitsw_{args.e_bits_w}_trainsize_{args.train_size}_group_size_None_ver{log_number}.txt'), mode='a')
