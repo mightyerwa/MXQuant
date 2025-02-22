@@ -97,12 +97,14 @@ def main():
     parser.add_argument("--act-scales", type=str, default=None)
     parser.add_argument("--act-shifts", type=str, default=None)
     parser.add_argument("--resume", default = None, type = str, help = "resume path")
-    parser.add_argument("--alpha", default=0.7, type = float, help = "smoothquant alpha")
+    parser.add_argument("--alpha", default=0.8, type = float, help = "smoothquant alpha")
     parser.add_argument("--let_lr", type=float, default=3e-4)
     parser.add_argument("--lwc_lr", type=float, default=3e-4)
-    parser.add_argument("--lora_lr", type=float, default=1e-4)
-    parser.add_argument("--l_rank", type=int, default=2, help="rank of lora")
-    parser.add_argument("--l_alpha", type=float, default=4, help="alpha of lora")
+    parser.add_argument("--lora_lr", type=float, default=3e-4)
+
+    parser.add_argument("--l_rank", type=int, default=1, help="rank of lora")
+    parser.add_argument("--l_alpha", type=float, default=2, help="alpha of lora")
+    parser.add_argument("--l_wd", type=float, default=1e-4, help="weight decay of lora")
     parser.add_argument("--wd", type=float, default=0)
 
     os.environ['TOKENIZERS_PARALLELISM'] = 'false'
