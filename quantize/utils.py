@@ -115,7 +115,7 @@ def smooth_and_quant_temporary(model, args, isllama):
     for name, module in model.named_modules():
         if isinstance(module, MXLinear):
             if hasattr(module, "temp_weight"):
-                module.temp_weight = module.temp_weight + module.lora_B.t() @ module.lora_A.t()
+                module.temp_weight = module.temp_weight + module.lora_B.t() @ module.lora_A.t() * module.scaling
                 module.temp_weight = module.weight_quantizer(module.temp_weight)
             else:
                 import pdb
@@ -151,6 +151,6 @@ def smooth_and_quant_inplace(model, args, isllama):
     # smooth_q_k_inplace(model.self_attn.q_proj, model.self_attn.k_proj, model.qkt_smooth_scale)
     for name, module in model.named_modules():
         if isinstance(module, MXLinear):
-            module.weight = module.weight + module.lora_B.t() @ module.lora_A.t()
+            module.weight = module.weight + module.lora_B.t() @ module.lora_A.t() * module.scaling
             module.weight = module.weight_quantizer(module.weight)
             module.use_temporary_parameter=False
