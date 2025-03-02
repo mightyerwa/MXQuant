@@ -58,7 +58,7 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', default='../weight/Llama-2-7b-hf', type=str)
-    parser.add_argument('--log_prefix', default='0223', type=str, help='prefix of log files, to figure the data')
+    parser.add_argument('--log_prefix', default='0228', type=str, help='prefix of log files, to figure the data')
 
     parser.add_argument('--cache_dir', default='./cache', type=str)
     parser.add_argument('--output_dir', default = './log/', type=str, help='output log dir')
@@ -100,11 +100,11 @@ def main():
     parser.add_argument("--alpha", default=0.8, type = float, help = "smoothquant alpha")
     parser.add_argument("--let_lr", type=float, default=3e-4)
     parser.add_argument("--lwc_lr", type=float, default=3e-4)
-    parser.add_argument("--lora_lr", type=float, default=3e-5)
+    parser.add_argument("--lora_lr", type=float, default=3e-4)
 
     parser.add_argument("--l_rank", type=int, default=1, help="rank of lora")
     parser.add_argument("--l_alpha", type=float, default=2, help="alpha of lora")
-    parser.add_argument("--l_wd", type=float, default=1e-5, help="weight decay of lora")
+    parser.add_argument("--l_wd", type=float, default=1e-4, help="weight decay of lora")
     parser.add_argument("--wd", type=float, default=0)
 
     os.environ['TOKENIZERS_PARALLELISM'] = 'false'
@@ -185,10 +185,10 @@ def main():
 
     evaluate(model, tokenizer, args, logger)
 
-    if args.epochs > 0:
-        import pdb; pdb.set_trace()
-        save_dir = os.path.join(args.save_quant_dir, f'{args.model_family}_sbits{args.s_bits}_ebits{args.e_bits}_epochs{args.epochs}_letlr{args.let_lr}_lwclr{args.lwc_lr}.pt')
-        torch.save(model.state_dict(), save_dir)
+    # if args.epochs > 0:
+    #     import pdb; pdb.set_trace()
+    #     save_dir = os.path.join(args.save_quant_dir, f'{args.model_family}_sbits{args.s_bits}_ebits{args.e_bits}_epochs{args.epochs}_letlr{args.let_lr}_lwclr{args.lwc_lr}.pt')
+    #     torch.save(model.state_dict(), save_dir)
 
 if __name__ == "__main__":
     print(sys.argv)
