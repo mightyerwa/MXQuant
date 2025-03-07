@@ -1,23 +1,24 @@
 import torch
 
-import torch
-import torch.nn as nn
+# 创建一个3维张量 (2, 3, 4)
+x = torch.tensor([[[1, 2, 3, 4],
+                  [5, 6, 7, 8],
+                  [9, 10, 11, 12]],
+                 
+                 [[13, 14, 15, 16],
+                  [17, 18, 19, 20],
+                  [21, 22, 23, 24]]])
 
+print(f"原始张量形状: {x.shape}")  # torch.Size([2, 3, 4])
 
-import torch
+# 在dim=0上求最大值
+max_dim0, _ = torch.max(x, dim=0)
+print(f"dim=0后形状: {max_dim0.shape}")  # torch.Size([3, 4])
 
-# 假设 x 是一个三维的 PyTorch tensor，并且 requires_grad=True
-x = torch.randn(3, 3, 3, requires_grad=True)  # 创建一个带有梯度追踪的张量
+# 在dim=1上求最大值
+max_dim1, _ = torch.max(x, dim=1)
+print(f"dim=1后形状: {max_dim1.shape}")  # torch.Size([2, 4])
 
-# x_tril = torch.tril(x) * torch.float('inf')
-# 使用 torch.zeros_like 来确保类型和 requires_grad 保持一致
-# y = torch.where(x <=0, torch.zeros_like(x), torch.log2(x))
-y = torch.where(x <=0, torch.tensor(0.0), torch.log2(x))
-# 假设你有一个损失函数，这里只是一个简单的平方和损失
-loss = y.sum()
-
-# 反向传播计算梯度
-loss.backward()
-
-# 查看梯度
-print(x.grad)
+# 在dim=2上求最大值
+max_dim2, _ = torch.max(x, dim=2)
+print(f"dim=2后形状: {max_dim2.shape}")  # torch.Size([2, 3])

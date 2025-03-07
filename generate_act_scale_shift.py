@@ -2,6 +2,7 @@ import torch
 import os
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
 import argparse
+import argparse
 import torch.nn as nn
 
 from datasets import load_dataset
@@ -14,7 +15,7 @@ try:
 except ImportError:
     print("if want to quantize llava model, you should manually install llava from ....")
 
-def get_act_scales(model, dataloader, num_samples = 128, alpha = 0.7):
+def get_act_scales(model, dataloader, num_samples = 512):
     model.eval()
     device = next(model.parameters()).device
     act_scales = {}
@@ -22,7 +23,7 @@ def get_act_scales(model, dataloader, num_samples = 128, alpha = 0.7):
     def stat_tensor(name, tensor):
         hidden_dim = tensor.size(-1)
         tensor = tensor.view(-1, hidden_dim).abs().detach()  # (N, hidden_dim)
-        comming_max = torch.max(tensor, dim=0)[0].float().cpu()  # values tuple(values, indices)
+        comming_max = torch.max(tensor, dim=0)[0].float().cpu()  # Returns tuple of (values, indices)
         # torch.max(tensor, dim = 0) find max in dim0, so output value dim is (hidden_dim)
         # output tensor has 1 fewer dimension than input tensor
         # import pdb; pdb.set_trace()
