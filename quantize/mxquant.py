@@ -234,12 +234,12 @@ def mxquant(model, args, trainloader, valloader, act_scales, logger):
         if args.epochs > 0:
             with torch.no_grad():
                 qlayer.float()  # required for AMP training
-                # import pdb; pdb.set_trace() # TODO test qlayer weight and scale dtype
-                # create optimizer
-                optimizer = torch.optim.AdamW([{"params": let_parameters(qlayer), "lr": args.let_lr, "weight_decay": args.wd},
-                                               {"params": lwc_parameters(qlayer), "lr": args.lwc_lr, "weight_decay": args.wd},
-                                               {"params": loraa_parameters(qlayer), "lr": args.lora_lr / 16, "weight_decay": args.l_wd},
-                                               {"params": lorab_parameters(qlayer), "lr": args.lora_lr, "weight_decay": args.l_wd}])
+                optimizer = torch.optim.AdamW([
+                    {"params": let_parameters(qlayer), "lr": args.let_lr, "weight_decay": args.wd},
+                    {"params": lwc_parameters(qlayer), "lr": args.lwc_lr, "weight_decay": args.wd},
+                    {"params": loraa_parameters(qlayer), "lr": args.lora_lr / 16, "weight_decay": args.l_wd},
+                    {"params": lorab_parameters(qlayer), "lr": args.lora_lr, "weight_decay": args.l_wd}
+                ])
 
                 # TODO
                 total_training_iteration = args.epochs * args.train_size / args.batch_size

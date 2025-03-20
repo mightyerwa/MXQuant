@@ -29,7 +29,7 @@ class MXLlamaMLP(nn.Module):
                  l_rank: int,
                  l_alpha: float,):
         super(MXLlamaMLP, self).__init__()
-        self.gate_proj = MXLinear(org_module=org_module.gate_proj, s_bits = s_bits, e_bits_w = e_bits_w, e_bits_a = e_bits_a, group_size = group_size, l_rank = l_rank, l_alpha= l_alpha)
+        self.gate_proj = MXLinear(org_module=org_module.gate_proj, s_bits = s_bits, e_bits_w = e_bits_w, e_bits_a = e_bits_a, group_size = group_size, l_rank = l_rank * 2, l_alpha= l_alpha * 1.5)
         self.down_proj = MXLinear(org_module = org_module.down_proj, s_bits = s_bits, e_bits_w = e_bits_w, e_bits_a = e_bits_a, group_size = group_size, l_rank = l_rank, l_alpha= l_alpha)
         self.up_proj = MXLinear(org_module=org_module.up_proj, s_bits = s_bits, e_bits_w = e_bits_w, e_bits_a = e_bits_a, group_size = group_size, l_rank = l_rank, l_alpha= l_alpha)
         self.act_fn = ACT2FN[hidden_act]
@@ -58,7 +58,7 @@ class MXLlamaAttention(nn.Module):
         assert self.num_key_value_heads * self.num_key_value_groups == self.num_heads, "Number of attention heads must divide num_key_value_heads"
         self.max_position_embeddings = config.max_position_embeddings  # 4096 default
 
-        self.q_proj = MXLinear(org_module=org_module.q_proj, s_bits = s_bits, e_bits_w = e_bits_w, e_bits_a = e_bits_a, group_size = group_size, l_rank = l_rank, l_alpha= l_alpha)
+        self.q_proj = MXLinear(org_module=org_module.q_proj, s_bits = s_bits, e_bits_w = e_bits_w, e_bits_a = e_bits_a, group_size = group_size, l_rank = l_rank * 2, l_alpha= l_alpha * 1.5)
         self.k_proj = MXLinear(org_module=org_module.k_proj, s_bits = s_bits, e_bits_w = e_bits_w, e_bits_a = e_bits_a, group_size = group_size, l_rank = l_rank, l_alpha= l_alpha)
         self.v_proj = MXLinear(org_module= org_module.v_proj, s_bits = s_bits, e_bits_w = e_bits_w, e_bits_a = e_bits_a, group_size = group_size, l_rank = l_rank, l_alpha= l_alpha)
         self.o_proj = MXLinear(org_module = org_module.o_proj,s_bits = s_bits, e_bits_w = e_bits_w, e_bits_a = e_bits_a, group_size = group_size, l_rank = l_rank, l_alpha= l_alpha)

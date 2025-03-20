@@ -67,7 +67,8 @@ class MXLinear(nn.Module):
                  group_size: int = None,
                  l_rank: int = 2,
                  l_alpha: float = 4,
-                 merge_weight: bool = False,):
+                 merge_weight: bool = False,
+                 layer_type: str = None):
         super(MXLinear, self).__init__()
         self.fwd_kwargs = dict()
         self.fwd_func = F.linear
@@ -85,6 +86,8 @@ class MXLinear(nn.Module):
 
         self.weight_quantizer = UniformQuantizer(s_bits = s_bits, e_bits = e_bits_w, group_size = group_size, weight = self.weight)
         self.act_quantizer = UniformQuantizer(s_bits = s_bits, e_bits = e_bits_a, group_size = group_size)
+        
+        # lora parameters
         self.lora_A = nn.Parameter(torch.empty(self.in_features, l_rank))
         self.lora_B = nn.Parameter(torch.empty(l_rank, self.out_features))
         self.merge_weight = merge_weight
