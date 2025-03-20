@@ -59,7 +59,7 @@ def trainable_parameters_num(model):
     for n, m in model.named_parameters():
         if m.requires_grad:
             total += m.numel()
-            print(f"{n} parameter, num:{m.numel() / 1e6}M")
+            # print(f"{n} parameter, num:{m.numel() / 1e6}M")
     return total
 
 

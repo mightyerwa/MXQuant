@@ -4,6 +4,8 @@ import torch.nn.functional as F
 import os
 import shutil
 
+
+from trainutils import WarmupCosineScheduler
 from datautils import BlockTrainDataset
 from quantize.mx_llama_layer import MXLlamaDecoderLayer
 from quantize.mx_linear import MXLinear
@@ -240,19 +242,17 @@ def mxquant(model, args, trainloader, valloader, act_scales, logger):
                     {"params": loraa_parameters(qlayer), "lr": args.lora_lr / 16, "weight_decay": args.l_wd},
                     {"params": lorab_parameters(qlayer), "lr": args.lora_lr, "weight_decay": args.l_wd}
                 ])
-
+                
                 # TODO
                 total_training_iteration = args.epochs * args.train_size / args.batch_size
-                empty_optimizer_1 = torch.optim.AdamW([torch.tensor(0)], lr=args.let_lr)
-                scheduler_let = CosineAnnealingLR(empty_optimizer_1, T_max=total_training_iteration, eta_min=args.let_lr / 30)
-                empty_optimizer_2 = torch.optim.AdamW([torch.tensor(0)], lr=args.lwc_lr)
-                scheduler_lwc = CosineAnnealingLR(empty_optimizer_2, T_max=total_training_iteration, eta_min=args.lwc_lr / 30)
-                empty_optimizer_3 = torch.optim.AdamW([torch.tensor(0)], lr=args.lora_lr / 10)
-                scheduler_lora_a = CosineAnnealingLR(empty_optimizer_3, T_max=total_training_iteration, eta_min=args.lora_lr / 300)
-                empty_optimizer_4 = torch.optim.AdamW([torch.tensor(0)], lr=args.lora_lr)
-                scheduler_lora_b = CosineAnnealingLR(empty_optimizer_4, T_max=total_training_iteration, eta_min=args.lora_lr / 30)
-
                 loss_scaler = utils.NativeScalerWithGradNormCount() #TODO
+                scheduler = WarmupCosineScheduler(
+                    optimizer,
+                    warmup_epochs=total_training_iteration // 10,
+                    total_epochs=total_training_iteration,
+                    warmup_start_lr=0,
+                    eta_min=1e-7
+                )
 
             trainable_number = trainable_parameters_num(qlayer)
             print(f"trainable parameter number: {trainable_number / 1e6}M")
@@ -279,19 +279,12 @@ def mxquant(model, args, trainloader, valloader, act_scales, logger):
                         logger.info("Loss is NAN, stopping training")
                         import pdb
                         pdb.set_trace()
-                    # print(optimizer)
-                    scheduler_let.step()
-                    scheduler_lwc.step()
-                    scheduler_lora_a.step()
-                    scheduler_lora_b.step()
-                    optimizer.param_groups[0]['lr'] = scheduler_let.get_lr()[0]
-                    optimizer.param_groups[1]['lr'] = scheduler_lwc.get_lr()[0]
-                    optimizer.param_groups[2]['lr'] = scheduler_lora_a.get_lr()[0]
-                    optimizer.param_groups[3]['lr'] = scheduler_lora_b.get_lr()[0]
+                    
 
                     loss_list.append(loss.detach().cpu())
                     optimizer.zero_grad()
                     norm = loss_scaler(loss, optimizer, parameters=get_mx_parameters(qlayer, use_shift)).cpu()
+                    scheduler.step()
                     norm_list.append(norm.data)
 
                 # loss_mean = torch.stack(loss_list).mean()
