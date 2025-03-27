@@ -324,7 +324,8 @@ def mxquant(model, args, trainloader, valloader, act_scales, logger):
         # real smooth and quantization
         smooth_and_quant_inplace(qlayer, args, is_llama)
 
-        qlayer.bfloat16()
+        # qlayer.bfloat16()
+        qlayer.float()
 
         if args.epochs > 0:
             update_dataset(qlayer, quant_train_inps, dev, attention_mask, position_ids, position_embeddings)
