@@ -208,7 +208,7 @@ def test_ppl(model, tokenizer, datasets, ppl_seqlen=2048):
         for i in tqdm(range(nsamples)):
             batch = testenc[:, (i * seqlen): ((i + 1) * seqlen)].to(model.device)
             # FIXME
-            model.bfloat16()
+            model.float()
             outputs = model.model(batch)
             if classifier is not None:
                 hidden_states = outputs[0]

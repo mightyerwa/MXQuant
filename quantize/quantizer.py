@@ -15,10 +15,10 @@ def clamp_ste(x: torch.Tensor, min, max):
 def ceil_ste(x):
     return (x.ceil() - x).detach() + x
 
-def get_shared_exp(x: torch.Tensor, s_bits):
+def get_shared_exp(x: torch.Tensor, e_bits):
     # x = torch.log2(clamp_ste(x, 1e-15, 1e15))
     x = torch.log2(x)
-    shared_exp = x - (s_bits - 1)
+    shared_exp = x - (e_bits - 1)
     shard_exp = ceil_ste(shared_exp)
     return shard_exp
 
@@ -101,7 +101,7 @@ class UniformQuantizer(nn.Module):
                 abs_max = torch.max(torch.abs(xmax), torch.abs(xmin))
                 abs_max = self.sigmoid(self.bound_factor) * abs_max
 
-                self.shard_exp = get_shared_exp(abs_max, self.s_bits)
+                self.shard_exp = get_shared_exp(abs_max, self.e_bits)
                 self.shard_exp = torch.clamp(self.shard_exp, self.smin, self.smax)
 
                 # x.to(torch.float32)
@@ -121,11 +121,17 @@ class UniformQuantizer(nn.Module):
                 x_dequant = x_dequant.view(ori_shape)
 
         elif self.quant_activation:
+            if self.group_size is not None:
+                ori_shape = x.shape
+                assert ori_shape[
+                           -1] % self.group_size == 0, f"hidden_size of activation must be divisible by group_size, ori_shape: {ori_shape}, group_size: {self.group_size}"
+                x = x.view(*ori_shape[:-1], -1, self.group_size)
+
             if self.disable_zero_point:
                 xmax = x.amax(dim=-1, keepdim=True)
                 xmin = x.amin(dim=-1, keepdim=True)
                 abs_max = torch.max(torch.abs(xmax), torch.abs(xmin))
-                self.shard_exp = get_shared_exp(abs_max, self.s_bits)
+                self.shard_exp = get_shared_exp(abs_max, self.e_bits)
                 self.shard_exp = torch.clamp(self.shard_exp, self.smin, self.smax)
 
                 # x.to(torch.float32)
@@ -141,6 +147,9 @@ class UniformQuantizer(nn.Module):
             else:
                 # x_dequant = x # TODO
                 raise NotImplementedError
+            
+            if self.group_size is not None:
+                x_dequant = x_dequant.view(ori_shape)
         else:
             raise NotImplementedError
 

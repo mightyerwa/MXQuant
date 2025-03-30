@@ -58,7 +58,7 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', default='../weight/Llama-2-7b-hf', type=str)
-    parser.add_argument('--log_prefix', default='0326', type=str, help='prefix of log files, to figure the data')
+    parser.add_argument('--log_prefix', default='0330', type=str, help='prefix of log files, to figure the data')
 
     parser.add_argument('--cache_dir', default='./cache', type=str)
     parser.add_argument('--output_dir', default = './log/', type=str, help='output log dir')

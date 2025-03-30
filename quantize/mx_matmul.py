@@ -14,8 +14,8 @@ class MXMatMul(nn.Module):
         self.use_act_quant = False
         # initialize quantizer
 
-        self.x1_quantizer = UniformQuantizer(s_bits=s_bits, e_bits=e_bits, group_size=group_size)
-        self.x2_quantizer = UniformQuantizer(s_bits=s_bits, e_bits=e_bits, group_size=group_size)
+        self.x1_quantizer = UniformQuantizer(s_bits=s_bits, e_bits=e_bits, group_size=None)
+        self.x2_quantizer = UniformQuantizer(s_bits=s_bits, e_bits=e_bits, group_size=None)
         self.matmul_func = matmul_func
 
     def set_quant_state(self, weight_quant: bool = False, act_quant: bool = False):
