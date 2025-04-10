@@ -15,7 +15,7 @@ class AlighQuantizer(nn.Module):
     def __init__(self,
                  remain_bit: int = 12,  # 保留的尾数位数
                  group_size: int = 256,  # 分组大小
-                 weight = None,
+                 weight: bool = False,
                  ori_dtype = torch.float16):
         super(AlighQuantizer, self).__init__()
 
@@ -26,7 +26,7 @@ class AlighQuantizer(nn.Module):
         self.group_size = group_size
         self.ori_dtype = ori_dtype
         
-        if weight is not None:
+        if weight:
             self.quant_weight = True
             self.quant_activation = False
         else:
@@ -91,7 +91,7 @@ class AlighQuantizer(nn.Module):
         """动态修改保留的尾数位数"""
         self.remain_bit = new_remain_bit
 
-class MXLinear(nn.Module):
+class AlignLinear(nn.Module):
     """
     MXLinear Module Perform quantized linear operation
     """
@@ -99,9 +99,9 @@ class MXLinear(nn.Module):
                  org_module: nn.Linear,
                  w_remain_bit: int = 10,
                  a_remain_bit: int = 10,
-                 input_type: str = 'float',
+                 group_size: int = 256,
                  ):
-        super(MXLinear, self).__init__()
+        super(AlignLinear, self).__init__()
         self.fwd_kwargs = dict()
         self.fwd_func = F.linear
         self.register_buffer('weight', org_module.weight)
@@ -112,41 +112,16 @@ class MXLinear(nn.Module):
         self.in_features = org_module.in_features
         self.out_features = org_module.out_features
 
-        weight_quantizer
-
-        self.weight_quantizer = UniformQuantizer(s_bits = s_bits, e_bits = e_bits_w, group_size = group_size, weight = self.weight)
-        self.act_quantizer = UniformQuantizer(s_bits = s_bits, e_bits = e_bits_a, group_size = group_size)
-        
-        # lora parameters
-        self.lora_A = nn.Parameter(torch.empty(self.in_features, l_rank))
-        self.lora_B = nn.Parameter(torch.empty(l_rank, self.out_features))
-        self.merge_weight = merge_weight
-
-        self.scaling = l_alpha / l_rank
-
-        nn.init.kaiming_uniform_(self.lora_A, a=math.sqrt(5))
-        # nn.init.kaiming_normal_(self.lora_A, mode='fan_in', nonlinearity='relu')
-        # self.lora_A.data.mul_(0.8)  # 适配SwiGLU特性
-        nn.init.zeros_(self.lora_B)
+        self.weight_quantizer = AlighQuantizer(remain_bit = w_remain_bit, group_size = group_size, weight = True)
+        self.act_quantizer = AlighQuantizer(remain_bit = a_remain_bit, group_size = group_size)
 
     def forward(self, input):
-        pass
-        # if self.use_temporary_parameter:
-        #     weight = self.temp_weight
-        #     bias = self.temp_bias
-        # elif self.use_weight_quant:
-        #     weight = self.weight_quantizer(self.weight)
-        #     bias = self.bias
-        # else:
-        #     weight = self.weight
-        #     bias = self.bias
+        weight = self.weight_quantizer(self.weight)
+        bias = self.bias
+        input = self.act_quantizer(input)
 
-        # if self.use_act_quant:
-        #     input = self.act_quantizer(input)
-
-        # out = self.fwd_func(input, weight, bias, **self.fwd_kwargs)
-
-        # return out
+        out = self.fwd_func(input, weight, bias, **self.fwd_kwargs)
+        return out
 
 @torch.no_grad()
 def evaluate(model, tokenizer, args):
@@ -181,16 +156,33 @@ def evaluate(model, tokenizer, args):
         print(f'Average Acc: {total_acc / len(task_list) * 100:.2f}%')
     return results
 
-def fp_cim_simulate(model):
+def fp_cim_simulate(model, w_remain_bit=10, a_remain_bit=10):
+    """Replace all Linear layers with AlignLinear in Llama2"""
     layers = model.model.layers
     for block_index in range(len(layers)):
         layer = layers[block_index]
         for name, module in layer.named_modules():
             if isinstance(module, nn.Linear):
-                # Simulate the behavior of the MXLinear class
-                # For example, you can set quantization states or modify weights here
-                pass
+                # Get the parent module
+                parent_name = '.'.join(name.split('.')[:-1])
+                if parent_name:
+                    parent = layer.get_submodule(parent_name)
+                else:
+                    parent = layer
+                
+                # Create AlignLinear layer
+                align_linear = AlignLinear(
+                    org_module=module,
+                    w_remain_bit = w_remain_bit,  # 可以调整这些参数
+                    a_remain_bit = a_remain_bit,
+                    group_size=256
+                )
+                
+                # Replace the Linear layer
+                child_name = name.split('.')[-1]
+                setattr(parent, child_name, align_linear)
     
+    return model
 
 def main():
     class Args:
@@ -200,16 +192,56 @@ def main():
             self.eval_batch_size = 16
             self.ppl_seqlen = 2048
             self.eval_tasks = "arc_easy,arc_challenge"
-            # self.eval_tasks = "piqa,arc_easy,arc_challenge,hellaswag,winogrande"
 
     args = Args()
     config = AutoConfig.from_pretrained(args.model, attn_implementation="eager")
-    tokenizer = AutoTokenizer.from_pretrained(args.model, use_fast = False, legacy = False)
-    model = AutoModelForCausalLM.from_pretrained(args.model, config=config, device_map = 'cuda', torch_dtype = torch.bfloat16)
-
-    layers = model.model.layers
-
-    evaluate(model, tokenizer, args)
+    tokenizer = AutoTokenizer.from_pretrained(args.model, use_fast=False, legacy=False)
+    
+    # Create results log file
+    import datetime
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_file = f"align_quant_results_{timestamp}.txt"
+    
+    print(f"Results will be saved to {log_file}")
+    
+    with open(log_file, 'w') as f:
+        # First evaluate original model
+        print("\nEvaluating original model...")
+        model = AutoModelForCausalLM.from_pretrained(
+            args.model,
+            config=config,
+            device_map='cuda',
+            torch_dtype=torch.float16
+        )
+        # original_results = evaluate(model, tokenizer, args)
+        # f.write(f"Original Model Results:\n{str(original_results)}\n\n")
+        
+        # Test different remain_bit values
+        for remain_bit in range(6, 13):  # 6 to 12 inclusive
+            print(f"\nTesting with remain_bit = {remain_bit}")
+            f.write(f"\n{'='*50}\nremain_bit = {remain_bit}\n{'='*50}\n")
+            
+            # Reload model for each test to ensure clean state
+            model = AutoModelForCausalLM.from_pretrained(
+                args.model,
+                config=config,
+                device_map='cuda',
+                torch_dtype=torch.float16
+            )
+            
+            # Replace with AlignLinear
+            model = fp_cim_simulate(model, w_remain_bit=remain_bit, a_remain_bit=remain_bit)
+            
+            # Evaluate
+            print(f"Evaluating model with {remain_bit} bits...")
+            results = evaluate(model, tokenizer, args)
+            
+            # Save results
+            f.write(f"Results:\n{str(results)}\n")
+            
+            # Clear GPU memory
+            del model
+            torch.cuda.empty_cache()
 
 if __name__ == "__main__":
     main()

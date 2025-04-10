@@ -58,7 +58,7 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', default='../weight/Llama-2-7b-hf', type=str)
-    parser.add_argument('--log_prefix', default='0330', type=str, help='prefix of log files, to figure the data')
+    parser.add_argument('--log_prefix', default='0401', type=str, help='prefix of log files, to figure the data')
 
     parser.add_argument('--cache_dir', default='./cache', type=str)
     parser.add_argument('--output_dir', default = './log/', type=str, help='output log dir')
@@ -77,7 +77,7 @@ def main():
     # quantize parameters
     parser.add_argument('--save_quant_dir', default='./quant_model', type=str, help='save quantized model')
     parser.add_argument("--load_quant_model", type=str, default=None, help="quantization model store path")
-    parser.add_argument("--calib_dataset", type=str, default="redpajama",
+    parser.add_argument("--calib_dataset", type=str, default="wikitext2",
                         choices=["wikitext2", "ptb", "c4", "mix", "redpajama"],
                         help="Where to extract calibration data from.")
 
@@ -87,7 +87,7 @@ def main():
 
     parser.add_argument("--group_size", type = int, default = None, help = "group_size for activation and weight")
 
-    parser.add_argument('--train_size', default=1024, type=int, help='num of train data samples')
+    parser.add_argument('--train_size', default=512, type=int, help='num of train data samples')
     parser.add_argument('--val_size', default=64, type=int, help='num of val data samples')
     parser.add_argument("--training_seqlen", default=2048, type=int, help='seqlen of training data')
 
@@ -98,9 +98,9 @@ def main():
     parser.add_argument("--act-shifts", type=str, default=None)
     parser.add_argument("--resume", default = None, type = str, help = "resume path")
     parser.add_argument("--alpha", default=0.75, type = float, help = "smoothquant alpha")
-    parser.add_argument("--let_lr", type=float, default=3e-4)
-    parser.add_argument("--lwc_lr", type=float, default=3e-4)
-    parser.add_argument("--lora_lr", type=float, default=3e-4)
+    parser.add_argument("--let_lr", type=float, default=1e-4)
+    parser.add_argument("--lwc_lr", type=float, default=1e-4)
+    parser.add_argument("--lora_lr", type=float, default=1e-6)
 
     parser.add_argument("--l_rank", type=int, default=1, help="rank of lora")
     parser.add_argument("--l_alpha", type=float, default=2, help="alpha of lora")
