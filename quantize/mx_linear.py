@@ -94,7 +94,7 @@ class MXLinear(nn.Module):
 
         self.scaling = l_alpha / l_rank
 
-        nn.init.kaiming_uniform_(self.lora_A, a=math.sqrt(5))
+        nn.init.kaiming_uniform_(self.lora_A, a=math.sqrt(5), mode="fan_out")
         # nn.init.kaiming_normal_(self.lora_A, mode='fan_in', nonlinearity='relu')
         # self.lora_A.data.mul_(0.8)  # 适配SwiGLU特性
         nn.init.zeros_(self.lora_B)

@@ -1,27 +1,33 @@
 import torch
 import torch.nn as nn
-import torch.optim as optim
-from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
+# import torch.optim as optim
+# from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
-config = AutoConfig.from_pretrained("../weight/Llama-2-7b-hf")
-model = AutoModelForCausalLM.from_pretrained("../weight/Llama-2-7b-hf", config = config).to("cuda")
-tokenizer = AutoTokenizer.from_pretrained("../weight/Llama-2-7b-hf", use_fast = False, legacy = False)
+# config = AutoConfig.from_pretrained("../weight/Llama-2-7b-hf")
+# model = AutoModelForCausalLM.from_pretrained("../weight/Llama-2-7b-hf", config = config).to("cuda")
+# tokenizer = AutoTokenizer.from_pretrained("../weight/Llama-2-7b-hf", use_fast = False, legacy = False)
 
-string = "Once upon a time in a distant galaxy,"
+# string = "Once upon a time in a distant galaxy,"
 
-inputs = tokenizer(string ,return_tensors = "pt").to("cuda")
+# inputs = tokenizer(string ,return_tensors = "pt").to("cuda")
 
-output = model.generate(
-    inputs["input_ids"],
-    max_length=200,  # 设置生成文本的最大长度
-    num_return_sequences=1,  # 生成的序列数量
-    temperature=0.7,  # 控制生成的随机性
-    top_k=50,  # 限制最高概率的词汇
-    top_p=0.9,  # nucleus sampling
-    do_sample=True,  # 启用采样
-)
+# output = model.generate(
+#     inputs["input_ids"],
+#     max_length=200,  # 设置生成文本的最大长度
+#     num_return_sequences=1,  # 生成的序列数量
+#     temperature=0.7,  # 控制生成的随机性
+#     top_k=50,  # 限制最高概率的词汇
+#     top_p=0.9,  # nucleus sampling
+#     do_sample=True,  # 启用采样
+# )
 
-generated_text = tokenizer.decode(output[0], skip_special_tokens=True)
+# generated_text = tokenizer.decode(output[0], skip_special_tokens=True)
 
-print("Input Text:", inputs)
-print("Generated Text:", generated_text)
+# print("Input Text:", inputs)
+# print("Generated Text:", generated_text)
+tensor = torch.empty(100, 1)
+import math
+# 使用 kaiming_uniform 初始化
+nn.init.kaiming_uniform(tensor, mode = "fan_out", a=math.sqrt(5))
+
+print(tensor)

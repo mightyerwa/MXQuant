@@ -277,8 +277,9 @@ def mxquant(model, args, trainloader, valloader, act_scales, logger):
 
                     if not math.isfinite(loss.item()):
                         logger.info("Loss is NAN, stopping training")
-                        import pdb
-                        pdb.set_trace()
+                        raise ValueError
+                        # import pdb
+                        # pdb.set_trace()
                     
 
                     loss_list.append(loss.detach().cpu())
