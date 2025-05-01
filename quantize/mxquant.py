@@ -35,6 +35,29 @@ def update_dataset(layer, dataset, dev, attention_mask, position_ids, position_e
                 new_data = layer(inps, attention_mask=attention_mask,position_ids=position_ids, position_embeddings = position_embeddings)[0].to('cpu')
                 dataset.update_data(index,new_data)
 
+def loss_function(label, quant_out, loss_func = "mse_loss", lm_head = None, temperature = 1.0):
+    """
+    Distillation loss function for quantization-aware training.
+    Args:
+        label (torch.Tensor): The ground truth labels.
+        quant_out (torch.Tensor): The output of the quantized model.
+        lm_head (torch.nn.Module, optional): The language model head. Defaults to None.
+        temperature (float, optional): Temperature for softmax. Defaults to 1.0.
+    Returns:
+        torch.Tensor: The distillation loss.
+    """
+    if loss_func != "mse_loss":
+        if lm_head is None:
+            raise ValueError("lm_head must be provided when loss_func is not mse_loss")
+        fp_logits = lm_head(label)  # Apply the language model head to the labels
+        quant_logits = lm_head(quant_out)  # Apply the language model head to the quantized output
+        fp_probs = F.softmax(fp_logits / temperature, dim=-1)
+        quant_probs = F.log_softmax(quant_logits / temperature, dim=-1)
+        loss = F.kl_div(quant_probs, fp_probs, reduction='batchmean')
+    else:
+        loss = F.mse_loss(label, quant_out)  # Use MSE loss if no lm_head is provided
+    return loss
+
 def mxquant(model, args, trainloader, valloader, act_scales, logger):
 
     logger.info("Starting MXQuant")
@@ -179,7 +202,13 @@ def mxquant(model, args, trainloader, valloader, act_scales, logger):
 
 
     # step 6: start training
-    loss_func = nn.MSELoss()
+    loss_func = args.loss_func
+    if loss_func == "mse_loss":
+        lm_head = None
+    else:
+        lm_head = model.lm_head.to(dev)
+
+
     for block_index in range(len(layers)):
         logger.info(f"=== Start quantize blocks {block_index}===")
         # step 6.1 replace torch.nn.Linear layer with MXLinear for QAT
@@ -272,7 +301,7 @@ def mxquant(model, args, trainloader, valloader, act_scales, logger):
                         quant_out = qlayer(input, attention_mask=attention_mask,
                                position_ids=position_ids, position_embeddings=position_embeddings)[0]
 
-                        reconstruction_loss = loss_func(label, quant_out)
+                        reconstruction_loss = loss_function(label, quant_out, loss_func, lm_head, temperature=args.temperature)
                         loss = reconstruction_loss
 
                     if not math.isfinite(loss.item()):
@@ -301,7 +330,8 @@ def mxquant(model, args, trainloader, valloader, act_scales, logger):
                             input = quant_inps.to(dev)
                             label = fp_inps.to(dev)
                             quant_out = qlayer(input, attention_mask=attention_mask, position_ids=position_ids, position_embeddings=position_embeddings)[0]
-                            reconstruction_loss = loss_func(label, quant_out)
+                            # reconstruction_loss = loss_function(label, quant_out, "mse_loss", lm_head, temperature=args.temperature)
+                            reconstruction_loss = F.mse_loss(label, quant_out)
                     val_loss_list.append(reconstruction_loss.cpu())
 
                 train_mean_num = min(len(loss_list),
@@ -310,7 +340,7 @@ def mxquant(model, args, trainloader, valloader, act_scales, logger):
                 val_loss_mean = torch.stack(val_loss_list).mean()
                 norm_mean = torch.stack(norm_list).mean()
                 logger.info(
-                    f"blocks {block_index} epoch {epoch} recon_loss:{loss_mean:.8f} val_loss:{val_loss_mean:.8f} norm:{norm_mean:.8f} max memory_allocated {torch.cuda.max_memory_allocated(dev) / 1024 ** 2:.2f} time {time.time() - start_time:.2f} ")
+                    f"blocks {block_index} epoch {epoch} recon_loss:{loss_mean:.8f} val_loss:{val_loss_mean:.8f} norm:{norm_mean:.6f} max memory_allocated {torch.cuda.max_memory_allocated(dev) / 1024 ** 2:.2f} time {time.time() - start_time:.2f} ")
                 # if val_loss_mean < best_val_loss:
                 #     best_val_loss = val_loss_mean
                 # else:

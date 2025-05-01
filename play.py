@@ -25,9 +25,18 @@ import torch.nn as nn
 
 # print("Input Text:", inputs)
 # print("Generated Text:", generated_text)
-tensor = torch.empty(100, 1)
-import math
-# 使用 kaiming_uniform 初始化
-nn.init.kaiming_uniform(tensor, mode = "fan_out", a=math.sqrt(5))
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+from torch.utils.data import TensorDataset, DataLoader
 
-print(tensor)
+A = torch.tensor([0.1, 0.7, 1])
+B = torch.tensor([0.1, 0.7, 1])
+
+A = F.log_softmax(A)
+print(A)
+B = F.softmax(B)
+print(B)
+output = F.kl_div(A, B, reduction = 'batchmean')
+print(output)

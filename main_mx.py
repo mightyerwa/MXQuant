@@ -58,7 +58,7 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', default='../weight/Llama-2-7b-hf', type=str)
-    parser.add_argument('--log_prefix', default='0411', type=str, help='prefix of log files, to figure the data')
+    parser.add_argument('--log_prefix', default='0430', type=str, help='prefix of log files, to figure the data')
 
     parser.add_argument('--cache_dir', default='./cache', type=str)
     parser.add_argument('--output_dir', default = './log/', type=str, help='output log dir')
@@ -101,10 +101,12 @@ def main():
     parser.add_argument("--let_lr", type=float, default=1e-4)
     parser.add_argument("--lwc_lr", type=float, default=1e-4)
     parser.add_argument("--lora_lr", type=float, default=1e-4)
+    parser.add_argument("--loss_func", type=str, default="mse_loss", choices=["mse_loss", "kl_div"])
+    parser.add_argument("--temperature", type=float, default=1.0, help="temperature for kl_div")
 
     parser.add_argument("--l_rank", type=int, default=1, help="rank of lora")
     parser.add_argument("--l_alpha", type=float, default=2, help="alpha of lora")
-    parser.add_argument("--l_wd", type=float, default=1e-2, help="weight decay of lora")
+    parser.add_argument("--l_wd", type=float, default=0, help="weight decay of lora")
     parser.add_argument("--wd", type=float, default=0)
 
     os.environ['TOKENIZERS_PARALLELISM'] = 'false'

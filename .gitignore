@@ -5,3 +5,4 @@ act_shifts/
 cache/
 __pycache__
 **/*.log
+play.py
